@@ -1,0 +1,250 @@
+Firewalld / NAT
+
+Примечание: Настраивается на роутерах RTR-L и RTR-R
+
+firewall-cmd --get-active-zones || Проверка, где какие зоны находятся
+firewall-cmd --permanent --zone=trusted --add-interface=[название интерфейса (например: ens11)] || Добавление интерфейса в зону trusted
+firewall-cmd --permanent --add-masquerade || Включение NAT
+systemctl restart firewalld || Перезагрузка сервиса
+firewall-cmd --list-all || Проверяет зону (по умолчанию public) и ее свойства
+firewall-cmd --zone=trusted --list-all || Проверяет зону trusted и ее свойства
+firewall-cmd --get-services || Смотрит какие сервисы есть
+firewall-cmd --permanent --add-service=[name-service] || Добавление сервиса
+firewall-cmd --permanent --remove-service=[name-service] || Удаление сервиса
+firewall-cmd --permanent --zone=trusted --add-source=[network IP]/[netmask] || Разрешает весь трафик во внутренней зоне (trusted), где [network IP] - это подсеть
+Установка пакетов
+
+Примечание: Команды для установки пакетов
+
+apt install network-manager || Установка пвесдооболочки для IP и Hostname
+apt install firewalld || Установка firewall
+apt install openssh-server -y || Установка SSH
+apt install bind9 || Установка DNS
+apt install samba || Установка пакета для обращения к сетевым дискам
+apt install cifs-utils || Установка пакета для обмена файлами между ПК
+apt install chrony || Установка пакета для отдачи времени другим
+apt install libreswan || Установка пакета для шифрования туннеля
+apt install strongswan || Установка пакета для шифрования туннеля (альтернатива)
+apt install nginx || Установка проксирующего сервера (для сайтов)
+apt install lynx || Установка браузера
+Переадресация
+
+Примечание: По умолчанию, все машины Debian могут только принимать пакеты, нужно разрешить роутеру (на Debian) передавать их через себя. Настраивается на ISP
+
+Открываем nano /etc/sysctl.conf || Конфигурационный файл
+Снимаем комментарий (#) у net.ipv4.ip_forward = 1 || Включили переадресацию
+sysctl -p || Проверяемся
+Полезные команды
+
+Примечание: Полезные команды, которые стоит знать
+
+dpkg --get-selections | more || Выводит список установленных пакетов построчно
+ip a || Полная информация об интерфейсах
+reboot || Перезагрузить ВМ
+route || Проверяет статические маршруты
+ip route add default via [Внешний адаптер роутера] || Добавляет шлюз по умолчанию
+ip route list || Проверяется шлюзы по умолчанию
+systemctl enable/disable [имя службы] || Включает/Выключает автозапуск службы вместе с ВМ
+systemctl start/stop [имя службы] || Включает/Выключает службу
+systemctl status [имя службы] || Проверяет статус службы
+libreswan или strongswan
+Делаем тунель / IPsec
+
+Примечание: Настраивается на роутерах RTR-L и RTR-R
+
+Создаем адаптер, выбираем тип адаптера: IP-тунель
+Выбираем протокол GRE (протокол туннелирования сетевых пакетов)
+Локальный IP: IP наружного адаптера роутера
+Удаленный IP: Наружный адаптер противоположного роутера
+IPv4(в ручную): Пишем свою IP-адрес, не имеет значение какой он будет / маска 30
+Статические маршруты: Destination/prefix - подсеть куда хотим попасть; HOP - через какой адаптер прыгаем во внутреннею сеть (= IPv4 противоположного роутера)
+Не забываем добавить интерфейс в зону trusted
+Примечание: Настраиваем IPsec на RTR-L; RTR-R
+
+systemctl enable ipsec || Включаем автозапуск
+nano /etc/ipsec.conf || Конфигурационный файл
+Добавляем
+conn "[имя соединения]"
+auto=start
+type=tunnel
+authby=secret
+left=[локальный IP]
+leftprotoport=gre
+right=[удаленный IP]
+rightprotoport=gre
+nano /etc/ipsec.secrets || Конфигурационный файл
+Добавляем ⇒ [локальный IP] [удаленный IP] : PSK "[ключ]"
+ipsec status | grep Total || Проверка соединения
+ipsec status | grep Traffic || Проверка трафика
+ipsec status || Проверка трафика для пакета strongswan
+openssh
+SHH
+
+Примечание: Настраивается на клиентах WEB-L; WEB-R
+
+Открываем nano /etc/ssh/sshd_config || Конфигурационный файл
+Снимаем комментарий (#) у PermitRootLogin prohibit-password || Включаем доступ к машине по SHH
+Далее приводим строку в такой вид: PermitRootLogin yes || Мы снимаем пароль и явно указываем подключения root(а) без пароля
+systemcyl restart sshd || Перезапускаем служу ssh
+systemcyl status sshd || Смотрим статус службы - [active (running)]
+Примечание: Настраивается на роутерах RTR-L и RTR-R
+
+firewall-cmd --permanent --add-forward-port=port=[порт ВМ, в которую стучимся (то есть которая делается переадресацию)]:proto=tcp:toport=[порт второй ВМ, в которую стучимся (куда)]:toaddr=[IP-адрес второй ВМ, в которую стучимся (куда)] || Команда для проброса портов
+Примечание: Проверка shh на CLI
+
+ssh -l root -p [порт] [IP-адрес интерфейса] || Проверка подключения
+w || Проверят, какие машины сейчас подключены
+bind9
+DNS
+
+         
+Примечание: Настраивается на роутере ISP
+
+cp /etc/bind/db.local /etc/bind/demo.wsr.zone || Копируем файл шаблон для прямой зоны
+cp /etc/bind/db.127 /etc/bind/demo.wsr.revzone || Копируем файл шаблон для обратной зоны
+ls /etc/bind || Проверяем скопировались ли файлы
+nano /etc/bind/demo.wsr.zone || Заходим в файл прямой зоны
+Первая строка указывает имя зоны и имя почты || Можно написать любой, но желательно isp.demo.wsr.
+Создаем записи
+Ключ (первый столбец)
+IN (второй столбец)
+Тип записи (третий столбец)
+Значение (четвертый столбец)
+Указываем записи для делегирования на зону SRV
+int.demo.wsr. / IN / NS / srv.int.demo.wsr
+srv.int.demo.wsr / IN / A / 4.4.4.100
+nano /etc/bind/demo.wsr.revzone || Заходим в файл обратной зоны
+Названия зоны те же, что и в прямой
+Создаем одну запись для самого себя
+1 / IN / PTR / isp.demo.wsr.
+nano /etc/bind/named.conf.defaulz-zones || Заходим в файл публикации зон
+Публикуем зону прямого просмотра
+zone "demo.wsr"
+type master
+file "/etc/bind/demo.wsr.zone"
+Публикуем зону обратного просмотра
+zone "3.3.3.in-addr-arpa"
+type master
+file "/etc/bind/demo.wsr.revzone"
+nano /etc/bind/named.conf.options || Файл настройки DNS
+Добавляем / Приводим в соответствии
+dnssec-validation no;
+listen-on { any; };
+recursion yes;
+systemctl restart bind9 (named.service) || Перезагружаем служба DNS
+systemctl status named.service || Проверят работает ли DNS и встало ли все корректно
+Не забываем указать в настройках адаптера "DNS" → 3.3.3.1 (чтобы он мог сам себя слушать)
+Примечание: Настраивается на роутере RTR-L
+
+firewall-cmd --permanent –add-forward-port=port=53:proto=udp:toport=53:toaddr=
+192.168.200.200 || Пробрасываем порт на сервер
+firewall-cmd --permanent –add-forward-port=port=53:proto=tcp:toport=53:toaddr=
+192.168.200.200 || Пробрасываем порт на сервер
+Примечание: Настраивается на всех ВМ Debian + проверка
+
+Поиск домена → int.demo.wsr || Указывается чтобы машины могли обращаться по имени машины в DNS-записи
+nslookup [имя машины + имя зоны] || Проверяет доступны ли DNS записи сервера и отдает соответствующею DNS запись
+samba | cifs-utils
+Сетевая папка
+
+Примечание: Настраивается на SRV
+
+Меняем на сервере логин учетной записи администратора:[имя логина]
+Примечание: Настраивается на WEB-L; WEB-R
+
+mkdir /opt/share || Создаем папку для монтирования
+chmod 777 /opt/share || Назначаем права для папки
+nano /etc/fstab || Конфигурационный файл
+//srv.int.demo.wsr/r /opt/share/ cifs user,rw,username=[логин администратора на сервере],pass=[пароль администратора на сервере] 0 0
+ls /opt/share || 'System Volume Information' - проверка, что диск работает
+Запрос для центра сертификации
+
+Примечание: Настраивается на WEB-L
+
+nano /etc/ssl/openssl.cnf || Конфигурационный файл запроса сертификата
+Находим [req] и добавляем
+req_extensions = v3_req || имя и расширения файла запроса сертификата
+Находим [req_distinguished_name] и меняем
+countryName_Default = RU || Страна запроса
+Находим [v3_req] и добавляем
+subjectAltName = @alt_names
+Создаем свой блок доменных имен - [alt_names]
+DNS.1 = www.demo.wsr || DNS обращение будет к SRV
+cd /opt/share || Сразу переходим в каталог сетевой папки, чтобы запрос создался сразу там
+openssl req -nodes -newkey rsa -out csr.req || Создаем запрос
+Country Name: RU
+Organization Name: DEMO.WSR
+Common Name: www.demo.wsr
+Все остальное пустое
+chrony
+Сервер времени | Синхронизация
+
+Примечание: Настраивается на ISP.
+
+timedatectl || Проверят состояние времени и поясов
+systemctl disable --now systemd-timesyncd || Отключает встроенный клиент NTP
+timedatectl set-timezone Asia/Yekaterinburg || Устанавливает часовой пояс
+timedatectl set-time ‘2023-[месяц]-[день] [часы]:[минуты]:[секунды]’ || Устанавливаем дату и время на ISP
+Примечание: Настраиваем раздачу времени на ISP
+
+Ставим пакет chrony
+nano /etc/chrony/chrony.conf || Конфигурационный файл
+Добавляем в файл
+local stratum 3
+allow 3.3.3.0/24
+allow 4.4.4.0/24
+chronyc clients || Проверяем какие клиенты синхронизируется с ISP
+Примечание: Синхронизируем время с SRV. Настраивается на всех ВМ Debian
+
+systemctl enable --now systemd-timesyncd || Включаем службу и автозапуск
+nano /etc/systemd/timesyncd.conf || Конфигурационный файл
+Снимаем комментарий // Приводим строки в следующий вид
+NTP=ntp.int.demo.wsr
+RootDistanceMaxSec=30
+Перезагружаем службу
+docker.iso | lynx | nginx
+Docker
+
+Примечание: Настраивается на WEB-L и WEB-R
+
+Ставим нужные нам пакеты (lynx; nginx)
+nginx -t || Проверка конфигурационного файла nginx на ошибки
+Подключаем образ docker.iso
+Настраиваем папку с докером и устанавливаем его
+mkdir /opt/docker || Создаем каталог для докера
+mount /dev/cdrom /mnt/ || Монтируем наш каталог в папку, для дальнейшего копирования
+cp /mnt/* /opt/docker || Копируем из монтированной папки, в нашу папку
+umount /mnt || Размонтируем наш диск
+cd /opt/docker/ || Переходим в папку с докером
+dpkg -i containerd* || Устанавливаем контейнер
+dpkg -i docker-* || Устанавливаем docker и все его файлы
+docker info; docker version || Проверка, что docker встал
+Ставим контейнер
+docker image load -i appdocker0.zip || Загружаем наш контейнер (с сайтом) в Docker
+docker image ls || Список установленных контейнеров
+docker run -d appdocker0 || Запускаем контейнер
+lynx http://[адрес контейнера]:[порт] || Проверка сайта (проверка работы контейнера)
+Настраиваем nginx
+docker ps || Смотрим информацию о контейнере (запоминаем NAMES)
+docker container inspect [NAMES] || Смотрим порт и IP-адрес контейнера
+ls /etc/nginx/sites-enabled/ || Шаблон конфигурационного файла nginx
+mv /etc/nginx/sites-enabled/default /etc/nginx/sites-enabled/[имя файла, можно webapp].conf
+nano /etc/nginx/sites-enabled/[имя файла, можно webapp].conf || Открываем редактор
+Комментируем следующие строки:
+listen [::]:80 default_server || IPv6 - нам не нужно
+root /var/www/html || var каталога у нас нет
+index index.html index.htm ... || У нас нет этих страниц
+try_files $url/ =404; || Дефолтные настройки
+server_name → www.demo.wsr
+Добавляем в Location → proxy_pass http://[адрес контейнера]:[порт]; || Перенаправление
+nginx -t || Проверка конфигурационного файла nginx на ошибки
+systemctl restart nginx || Перезагружаем службу
+lynx http://localhost || Проверка сайта
+lynx http://localhost/get || Проверка другой страницы сайта
+systemctl enable docker || Добавляет Docker в автозапуск
+docker run -d --restart unless-stopped appdocker0 || Добавляет контейнер в автозапуск, если машины перезагрузилась
+ВСЕ действия выше мы повторяем на WEB-R (WEB-L)
+Примечание: Настраивается на RTR-L и RTR-R
+
+Пробрасываем 80 порт к нашим web-серверам (tcp)
+firewall-cmd --permanent –add-forward-port=port=80:proto=tcp:toport=80:toaddr= [IP адрес WEB-L или WEB-R]
